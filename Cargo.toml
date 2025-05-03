@@ -1,0 +1,14 @@
+[package]
+name = "cursor_binary_parser"
+version = "0.1.0"
+edition = "2024"
+authors = ["GrumpyMetalGuy"]
+license-file = "LICENSE"
+description = "A helper for using Cursor to manage the parsing of binary packed files."
+repository = "https://github.com/GrumpyMetalGuy/cursor_binary_parser"
+readme = "README.md"
+keywords = ["cursor", "parsing", "nom"]
+categories = ["parsing"]
+
+[dependencies]
+thiserror = "2.0"
