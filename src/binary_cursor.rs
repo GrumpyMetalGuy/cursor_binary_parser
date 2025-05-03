@@ -1,37 +1,19 @@
-//! A binary parsing utility that provides a cursor-like interface for reading binary data.
+//! A low-level binary parsing interface with position tracking and error handling.
 //! 
-//! This module provides a `BinaryCursor` type that wraps a `std::io::Cursor<T>` where T implements `AsRef<[u8]>`
-//! and adds functionality for parsing various types of binary data, as well as managing a location stack
-//! for temporary position changes.
+//! This module implements a binary parser that maintains a position stack and provides
+//! type-safe parsing methods for common binary formats. It handles errors through a
+//! custom error type that wraps I/O errors and provides detailed error messages.
 //! 
-//! This project is heavily inspired by nom, but with the intention of not consuming the input data.
+//! The implementation includes:
+//! - Position management with push/pop operations
+//! - Safe parsing of primitive types (u8, u16, u32, f32)
+//! - RAII-based temporary position changes via BinaryCursorJump
+//! - Error handling with custom error types
 //! 
-//! # Examples
+//! # Safety
 //! 
-//! ```rust
-//! use cursor_binary_parser::binary_cursor::{BinaryCursor, BinaryCursorJump};
-//! 
-//! // Can be used with Vec<u8>
-//! let data = vec![0x42, 0x24, 0x00, 0x01];
-//! let mut cursor = BinaryCursor::new(&data);
-//! 
-//! // Parse a u8
-//! let value = cursor.parse_u8().unwrap();
-//! assert_eq!(value, 0x42);
-//! 
-//! // Can also be used with &[u8]
-//! let slice: &[u8] = &[0x42, 0x24, 0x00, 0x01];
-//! let mut cursor = BinaryCursor::new(slice);
-//! 
-//! // Use BinaryCursorJump for temporary position changes
-//! {
-//!     let mut jump = BinaryCursorJump::new(&mut cursor);
-//!     jump.jump(2).unwrap();
-//!     let value = jump.cursor.parse_u16_le().unwrap();
-//!     assert_eq!(value, 0x0100);
-//! }
-//! // Position is automatically restored after jump
-//! ```
+//! All parsing operations are bounds-checked and will return errors rather than
+//! panicking on invalid input or out-of-bounds access.
 
 use std::io::{Cursor, Read};
 use thiserror::Error;
