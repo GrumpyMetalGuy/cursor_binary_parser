@@ -1,5 +1,6 @@
 # cursor_binary_parser
-[![Rust](https://github.com/GrumpyMetalGuy/cursor_binary_parser/actions/workflows/rust.yml/badge.svg)](https://github.com/GrumpyMetalGuy/cursor_binary_parser/actions/workflows/rust.yml) ![Crates.io Version](https://img.shields.io/crates/v/cursor_binary_parser) ![Crates.io Version](https://img.shields.io/crates/v/cursor_binary_parser)
+[![Rust](https://github.com/GrumpyMetalGuy/cursor_binary_parser/actions/workflows/rust.yml/badge.svg)](https://github.com/GrumpyMetalGuy/cursor_binary_parser/actions/workflows/rust.yml) ![Crates.io Version](https://img.shields.io/crates/v/cursor_binary_parser) ![docs.rs](https://img.shields.io/docsrs/cursor_binary_parser)
+
 
 A [nom](<https://github.com/rust-bakery/nom>)-like wrapper around a Cursor of u8 to provide non-consuming parsing features.
 
