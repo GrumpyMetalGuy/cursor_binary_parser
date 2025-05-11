@@ -1,17 +1,17 @@
 //! A low-level binary parsing interface with position tracking and error handling.
-//! 
+//!
 //! This module implements a binary parser that maintains a position stack and provides
 //! type-safe parsing methods for common binary formats. It handles errors through a
 //! custom error type that wraps I/O errors and provides detailed error messages.
-//! 
+//!
 //! The implementation includes:
 //! - Position management with push/pop operations
 //! - Safe parsing of primitive types (u8, u16, u32, f32)
 //! - RAII-based temporary position changes via BinaryCursorJump
 //! - Error handling with custom error types
-//! 
+//!
 //! # Safety
-//! 
+//!
 //! All parsing operations are bounds-checked and will return errors rather than
 //! panicking on invalid input or out-of-bounds access.
 
@@ -37,7 +37,7 @@ impl BinaryCursorError {
 
 // region: Cursor implementation
 /// A cursor-like interface for parsing binary data
-/// 
+///
 /// This type provides methods for parsing various types of binary data and managing
 /// a location stack for temporary position changes. It works with any type T that
 /// implements `AsRef<[u8]>`, such as `Vec<u8>`, `&[u8]`, or other byte containers.
@@ -73,7 +73,7 @@ where
     }
 
     /// Restores the most recently saved position from the location stack
-    /// 
+    ///
     /// Returns `true` if a position was restored, `false` if the stack was empty
     pub fn restore_location(&mut self) -> bool {
         if let Some(pos) = self.location_stack.pop() {
@@ -105,6 +105,13 @@ where
         Ok(u32::from_le_bytes(buf))
     }
 
+    /// Parses a u64 in little-endian format from the current position
+    pub fn parse_u64_le(&mut self) -> Result<u64, BinaryCursorError> {
+        let mut buf = [0u8; 8];
+        self.data.read_exact(&mut buf)?;
+        Ok(u64::from_le_bytes(buf))
+    }
+
     /// Parses an f32 in little-endian format from the current position
     pub fn parse_f32_le(&mut self) -> Result<f32, BinaryCursorError> {
         let mut buf = [0u8; 4];
@@ -112,11 +119,46 @@ where
         Ok(f32::from_le_bytes(buf))
     }
 
+    /// Parses an f64 (double precision) in little-endian format from the current position
+    pub fn parse_f64_le(&mut self) -> Result<f64, BinaryCursorError> {
+        let mut buf = [0u8; 8];
+        self.data.read_exact(&mut buf)?;
+        Ok(f64::from_le_bytes(buf))
+    }
+
     /// Parses a specified number of bytes from the current position
     pub fn parse_bytes(&mut self, count: usize) -> Result<Vec<u8>, BinaryCursorError> {
         let mut buf = vec![0u8; count];
         self.data.read_exact(&mut buf)?;
         Ok(buf)
+    }
+
+    /// Parses an i8 from the current position
+    pub fn parse_i8(&mut self) -> Result<i8, BinaryCursorError> {
+        let mut buf = [0u8; 1];
+        self.data.read_exact(&mut buf)?;
+        Ok(i8::from_le_bytes(buf))
+    }
+
+    /// Parses an i16 in little-endian format from the current position
+    pub fn parse_i16_le(&mut self) -> Result<i16, BinaryCursorError> {
+        let mut buf = [0u8; 2];
+        self.data.read_exact(&mut buf)?;
+        Ok(i16::from_le_bytes(buf))
+    }
+
+    /// Parses an i32 in little-endian format from the current position
+    pub fn parse_i32_le(&mut self) -> Result<i32, BinaryCursorError> {
+        let mut buf = [0u8; 4];
+        self.data.read_exact(&mut buf)?;
+        Ok(i32::from_le_bytes(buf))
+    }
+
+    /// Parses an i64 in little-endian format from the current position
+    pub fn parse_i64_le(&mut self) -> Result<i64, BinaryCursorError> {
+        let mut buf = [0u8; 8];
+        self.data.read_exact(&mut buf)?;
+        Ok(i64::from_le_bytes(buf))
     }
 
     /// Returns the current position in the data stream
@@ -130,17 +172,17 @@ where
     }
 
     /// Parses multiple items using the provided parser function
-    /// 
+    ///
     /// This is similar to nom's `count` combinator, but works with the `BinaryCursor` interface.
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```rust
     /// use cursor_binary_parser::binary_cursor::BinaryCursor;
-    /// 
+    ///
     /// let data = vec![0x01, 0x02, 0x03, 0x04];
     /// let mut cursor = BinaryCursor::new(data);
-    /// 
+    ///
     /// let values = cursor.count(|c| c.parse_u8(), 4).unwrap();
     /// assert_eq!(values, vec![0x01, 0x02, 0x03, 0x04]);
     /// ```
@@ -159,7 +201,7 @@ where
 
 // region: CursorJump implementation
 /// A helper type for temporary position changes
-/// 
+///
 /// This type provides a way to temporarily change the position of a `BinaryCursor`
 /// and automatically restore it when the `BinaryCursorJump` is dropped.
 /// Works with any type T that implements `AsRef<[u8]>`.
@@ -168,7 +210,7 @@ pub struct BinaryCursorJump<'a, T: AsRef<[u8]>> {
     pub cursor: &'a mut BinaryCursor<T>,
 }
 
-impl<'a, T> BinaryCursorJump<'a, T> 
+impl<'a, T> BinaryCursorJump<'a, T>
 where
     T: AsRef<[u8]>,
 {
@@ -178,11 +220,50 @@ where
     }
 
     /// Temporarily jumps to the specified position
-    /// 
+    ///
     /// The position will be automatically restored when the `BinaryCursorJump` is dropped.
     pub fn jump(&mut self, location: u64) -> Result<(), BinaryCursorError> {
         self.cursor.push_location();
         self.cursor.set_position(location);
+        Ok(())
+    }
+
+    /// Temporarily jumps to a position relative to the current cursor location
+    ///
+    /// The position will be automatically restored when the `BinaryCursorJump` is dropped.
+    /// A positive offset moves forward, while a negative offset moves backward.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use cursor_binary_parser::binary_cursor::{BinaryCursor, BinaryCursorJump};
+    ///
+    /// let data = vec![0x01, 0x02, 0x03, 0x04];
+    /// let mut cursor = BinaryCursor::new(data);
+    /// cursor.set_position(1);
+    ///
+    /// {
+    ///     let mut jump = BinaryCursorJump::new(&mut cursor);
+    ///     jump.jump_relative(2).unwrap();
+    ///     assert_eq!(jump.cursor.position(), 3);
+    /// }
+    /// assert_eq!(cursor.position(), 1);
+    /// ```
+    pub fn jump_relative(&mut self, offset: i64) -> Result<(), BinaryCursorError> {
+        self.cursor.push_location();
+        let current_pos = self.cursor.position();
+        let new_pos = if offset >= 0 {
+            current_pos.checked_add(offset as u64)
+        } else {
+            current_pos.checked_sub(offset.unsigned_abs())
+        }
+        .ok_or_else(|| {
+            BinaryCursorError::ParseError(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Position would overflow/underflow",
+            ))
+        })?;
+        self.cursor.set_position(new_pos);
         Ok(())
     }
 }
@@ -227,11 +308,48 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_u64_le() {
+        let data = vec![
+            0xFE, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, // 18446744073709551614
+            0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, // 18446744073709551615
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // 0
+        ];
+        let mut cursor = BinaryCursor::new(data);
+        assert_eq!(cursor.parse_u64_le().unwrap(), 18446744073709551614);
+        assert_eq!(cursor.parse_u64_le().unwrap(), 18446744073709551615);
+        assert_eq!(cursor.parse_u64_le().unwrap(), 0);
+        assert_eq!(cursor.position(), 24);
+    }
+
+    #[test]
     fn test_parse_f32_le() {
         let data = vec![0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x00, 0x40];
         let mut cursor = BinaryCursor::new(data);
         assert_eq!(cursor.parse_f32_le().unwrap(), 1.0);
         assert_eq!(cursor.position(), 4);
+    }
+
+    #[test]
+    fn test_parse_f64_le() {
+        let data = vec![
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xF0, 0x3F, // 1.0
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, // 2.0
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xF0, 0xBF, // -1.0
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // 0.0
+        ];
+        let mut cursor = BinaryCursor::new(data);
+        assert_eq!(cursor.parse_f64_le().unwrap(), 1.0);
+        assert_eq!(cursor.parse_f64_le().unwrap(), 2.0);
+        assert_eq!(cursor.parse_f64_le().unwrap(), -1.0);
+        assert_eq!(cursor.parse_f64_le().unwrap(), 0.0);
+        assert_eq!(cursor.position(), 32);
+    }
+
+    #[test]
+    fn test_parse_f64_le_error_handling() {
+        let data = vec![0x42];
+        let mut cursor = BinaryCursor::new(data);
+        assert!(cursor.parse_f64_le().is_err());
     }
 
     #[test]
@@ -342,6 +460,99 @@ mod tests {
         match cursor_error {
             BinaryCursorError::ParseError(_) => (),
         }
+    }
+
+    #[test]
+    fn test_jump_relative() {
+        let data = vec![0x01, 0x02, 0x03, 0x04, 0x05];
+        let mut cursor = BinaryCursor::new(data);
+        cursor.set_position(2);
+
+        {
+            let mut jump = BinaryCursorJump::new(&mut cursor);
+            jump.jump_relative(2).unwrap();
+            assert_eq!(jump.cursor.position(), 4);
+        }
+        assert_eq!(cursor.position(), 2);
+
+        {
+            let mut jump = BinaryCursorJump::new(&mut cursor);
+            jump.jump_relative(-1).unwrap();
+            assert_eq!(jump.cursor.position(), 1);
+        }
+        assert_eq!(cursor.position(), 2);
+    }
+
+    #[test]
+    fn test_jump_relative_overflow() {
+        let data = vec![0x01, 0x02];
+        let mut cursor = BinaryCursor::new(data);
+        cursor.set_position(1);
+
+        {
+            let mut jump = BinaryCursorJump::new(&mut cursor);
+            assert!(jump.jump_relative(-2).is_err());
+        }
+        assert_eq!(cursor.position(), 1);
+    }
+
+    #[test]
+    fn test_parse_i8() {
+        let data = vec![0xFE, 0x7F, 0x80];
+        let mut cursor = BinaryCursor::new(data);
+        assert_eq!(cursor.parse_i8().unwrap(), -2);
+        assert_eq!(cursor.parse_i8().unwrap(), 127);
+        assert_eq!(cursor.parse_i8().unwrap(), -128);
+        assert_eq!(cursor.position(), 3);
+    }
+
+    #[test]
+    fn test_parse_i16_le() {
+        let data = vec![0xFE, 0xFF, 0xFF, 0x7F, 0x00, 0x80];
+        let mut cursor = BinaryCursor::new(data);
+        assert_eq!(cursor.parse_i16_le().unwrap(), -2);
+        assert_eq!(cursor.parse_i16_le().unwrap(), 32767);
+        assert_eq!(cursor.parse_i16_le().unwrap(), -32768);
+        assert_eq!(cursor.position(), 6);
+    }
+
+    #[test]
+    fn test_parse_i32_le() {
+        let data = vec![
+            0xFE, 0xFF, 0xFF, 0xFF, // -2
+            0xFF, 0xFF, 0xFF, 0x7F, // 2147483647
+            0x00, 0x00, 0x00, 0x80, // -2147483648
+        ];
+        let mut cursor = BinaryCursor::new(data);
+        assert_eq!(cursor.parse_i32_le().unwrap(), -2);
+        assert_eq!(cursor.parse_i32_le().unwrap(), 2147483647);
+        assert_eq!(cursor.parse_i32_le().unwrap(), -2147483648);
+        assert_eq!(cursor.position(), 12);
+    }
+
+    #[test]
+    fn test_parse_i64_le() {
+        let data = vec![
+            0xFE, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, // -2
+            0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F, // 9223372036854775807
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, // -9223372036854775808
+        ];
+        let mut cursor = BinaryCursor::new(data);
+        assert_eq!(cursor.parse_i64_le().unwrap(), -2);
+        assert_eq!(cursor.parse_i64_le().unwrap(), 9223372036854775807);
+        assert_eq!(cursor.parse_i64_le().unwrap(), -9223372036854775808);
+        assert_eq!(cursor.position(), 24);
+    }
+
+    #[test]
+    fn test_signed_integer_error_handling() {
+        let data = vec![0x42];
+        let mut cursor = BinaryCursor::new(data);
+
+        assert!(cursor.parse_i16_le().is_err());
+        assert!(cursor.parse_i32_le().is_err());
+        assert!(cursor.parse_u64_le().is_err());
+        assert!(cursor.parse_i64_le().is_err());
     }
 }
 // endregion: Tests

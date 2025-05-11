@@ -4,7 +4,7 @@ A [nom](<https://github.com/rust-bakery/nom>)-like wrapper around a Cursor of u8
 ## Motivation
 Needing to parse a binary file structure with internal offsets into different structures, I investigated [nom](<https://github.com/rust-bakery/nom>), but found that due to the way it consumes input data, all offsets became invalid. The Cursor Binary Parser provides a ```nom```-like interface to allow binary structures to be parsed without consuming the input stream.
 
-Direct string creation is not directly supported yet.
+Note that direct string creation is not directly supported yet.
 
 ## Usage
 
